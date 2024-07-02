@@ -9,17 +9,6 @@ from sqlalchemy.orm import relationship
 class Base(DeclarativeBase):
     pass
 
-"""
-Assignments = Table(
-    "assignments",
-    Base.metadata,
-    Column('id',Integer,primary_key=True),
-    Column('resource',Integer,ForeignKey("resources.id")),
-    Column('task',Integer,ForeignKey('tasks.id')),
-    Column('hours',Float)
-)
-"""
-
 class Assignments(Base):
     __tablename__ ="assignments"
 
@@ -46,4 +35,3 @@ class Tasks(Base):
     enddate: Mapped[str] = mapped_column(String(30))
     startdate: Mapped[str] = mapped_column(String(30))
     resources: Mapped[List['Resources']] = relationship('Resources',secondary=Assignments.__table__,back_populates="tasks")
-
