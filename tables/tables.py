@@ -15,7 +15,7 @@ class Assignments(Base):
     id:Mapped[int] = mapped_column(primary_key=True)
     resource: Mapped[int] = mapped_column(ForeignKey("resources.id"))
     tasks: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
-    hours: Mapped[float] = mapped_column()
+    hours: Mapped[float] = mapped_column(nullable=False)
 
 class Resources(Base):
     __tablename__ = "resources"

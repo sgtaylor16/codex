@@ -22,18 +22,24 @@ def countMonths(startdate:date,enddate:date) -> int:
     elif (enddate.year - startdate.year) > 0:
         return enddate.month + (13 - enddate.month) + 12*(startdate.year - startdate.year - 1)
     
+def addzero(x:str) -> str:
+    if len(x) == 1:
+        return '0' + str(x)
+    else:
+        return x
+    
 def calcHoursinMonth(startdate:date,enddate:date,hours:float) -> List[int]:
-
-    def addzero(x:str) -> str:
-        if len(x) == 1:
-            return '0' + str(x)
-        else:
-            return x
-
+    """
+    Returns a list of hours in each month. Total will equal hours
+    """
     # Create a sample date range
     date_frame = pd.date_range(startdate,enddate, freq='B').to_frame()
     date_frame['AP'] = date_frame[0].apply(lambda x: str(x.year) + addzero(str(x.month)))
-    return date_frame['AP'].value_counts().sort_index().to_list()
+    print(date_frame['AP'].value_counts().sort_index().to_list())
+
+    hourmult = float(hours / date_frame['AP'].value_counts().sum() )
+    daylist = date_frame['AP'].value_counts().sort_index().to_list()
+    return [hourmult * x for x in daylist]
 
 def addAssignment(taskname,resourcename,hours):
     tasknumber = get_TaskNumber(taskname)
@@ -74,7 +80,42 @@ def dateIndex(startdate:date,enddate:date):
     datelist = pd.date_range(beginDate,enddate,freq='MS').to_list()
     return [dtToAP(x) for x in datelist]
 
-def createTable():
+def readTasks(filename:str,map:dict=None):
+    taskslist = pd.read_csv(filename)
+    if map != None:
+        tasklist = tasklist.rename(mapper=map,axis=1)
+    taskslist = taskslist[['name','startdate','enddate']].to_dict(orient='records')
+    instances = [Tasks(**row) for row in taskslist]
+    with Session() as session:
+        session.add_all(instances)
+        session.commit()
+
+def readResources(filename:str,map:dict=None):
+    resourcelist = pd.read_csv(filename)
+    if map != None:
+        resourcelist = resourcelist.rename(mapper=map,axis=1)
+    resourcelist = resourcelist[['name','dept','skill','units']].to_dict(orient='records')
+    instances = [Resources(**row) for row in resourcelist]
+    with Session() as session:
+        session.add_all(instances)
+        session.commit()
+
+def readAssignments(filename:str,map:dict=None):
+    assignlist = pd.read_csv(filename)
+    if map != None:
+        assignlist = assignlist.rename(mapper=map,axis=1)
+    assignlist['task'] = assignlist['task'].apply(get_TaskNumber)
+    assignlist['resource'] = assignlist['resource'].apply(get_ResourceNumber)
+    assignlist= assignlist[['task','resource','hours']].to_dict(orient='records')
+    instances = [Assignments(**row) for row in assignlist]
+    with Session() as session:
+        session.add_all(instances)
+        session.commit()
+
+def createTable() -> pd.DataFrame:
+    """
+    Returns a pandas dataframe suitable to input into a loading
+    """
 
     df = pd.DataFrame(columns = dateIndex(getMinDate(),getMaxDate()))
     stmt = select(Assignments)
@@ -94,18 +135,6 @@ def createTable():
         df = pd.concat([df,tempdf],axis=0).fillna(0)
 
     return df
-
-def readTasks(filename:str,map:dict=None):
-    taskslist = pd.read_csv(filename)
-    if map != None:
-        tasklist = tasklist.rename(mapper=map,axis=1)
-    taskslist = taskslist[['name','startdate','enddate']].to_dict(orient='records')
-    instances = [Tasks(**row) for row in taskslist]
-    with Session() as session:
-        session.add_all(instances)
-        session.commit()
-
-
 
     
         
