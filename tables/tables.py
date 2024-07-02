@@ -21,7 +21,7 @@ class Resources(Base):
     __tablename__ = "resources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(30))
+    name: Mapped[str] = mapped_column(String(30),unique=True)
     dept: Mapped[int] = mapped_column(Integer)
     skill: Mapped[str] = mapped_column(String(30))
     units: Mapped[str] = mapped_column(String(30))
@@ -31,7 +31,7 @@ class Tasks(Base):
     __tablename__ = "tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(30))
+    name: Mapped[str] = mapped_column(String(30),unique=True)
     enddate: Mapped[str] = mapped_column(String(30))
     startdate: Mapped[str] = mapped_column(String(30))
     resources: Mapped[List['Resources']] = relationship('Resources',secondary=Assignments.__table__,back_populates="tasks")

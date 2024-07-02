@@ -94,6 +94,20 @@ def createTable():
         df = pd.concat([df,tempdf],axis=0).fillna(0)
 
     return df
+
+def readTasks(filename:str,map:dict=None):
+    taskslist = pd.read_csv(filename)
+    if map != None:
+        tasklist = tasklist.rename(mapper=map,axis=1)
+    taskslist = taskslist[['name','startdate','enddate']].to_dict(orient='records')
+    instances = [Tasks(**row) for row in taskslist]
+    with Session() as session:
+        session.add_all(instances)
+        session.commit()
+
+
+
+    
         
         
 
