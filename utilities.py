@@ -41,6 +41,12 @@ def calcHoursinMonth(startdate:date,enddate:date,hours:float) -> List[int]:
     daylist = date_frame['AP'].value_counts().sort_index().to_list()
     return [hourmult * x for x in daylist]
 
+def calcHoursinMonthLevel(startdate:date,enddate:date,fte:float) -> List[float]:
+    date_frame = pd.date_range(startdate,enddate,freq="B").to_frame()
+    date_frame['AP'] = date_frame[0].apply(lambda x: str(x.year) + addzero(str(x.month)))
+    date_frame['Hours'] = fte * 8.0
+    return date_frame['Hours'].groupby(date_frame['AP']).sum().to_list()
+
 def addAssignment(taskname,resourcename,hours):
     tasknumber = get_TaskNumber(taskname)
     resourcenumber = get_ResourceNumber(resourcename)
@@ -104,9 +110,9 @@ def readAssignments(filename:str,map:dict=None):
     assignlist = pd.read_csv(filename)
     if map != None:
         assignlist = assignlist.rename(mapper=map,axis=1)
-    assignlist['task'] = assignlist['task'].apply(get_TaskNumber)
+    assignlist['tasks'] = assignlist['tasks'].apply(get_TaskNumber)
     assignlist['resource'] = assignlist['resource'].apply(get_ResourceNumber)
-    assignlist= assignlist[['task','resource','hours']].to_dict(orient='records')
+    assignlist= assignlist[['tasks','resource','hours','mode']].to_dict(orient='records')
     instances = [Assignments(**row) for row in assignlist]
     with Session() as session:
         session.add_all(instances)
@@ -131,10 +137,18 @@ def createTable() -> pd.DataFrame:
             resource = session.scalars(select(Resources).filter_by(id=result.tasks)).all()[0]
             #Get Hours
             hours = result.hours
-        tempdf = pd.DataFrame(columns=dateIndex(starttask,endtask),index=[resource.name], data=[calcHoursinMonth(starttask,endtask,hours)])
-        df = pd.concat([df,tempdf],axis=0).fillna(0)
+            #get Mode
+            if result.mode.lower() == 'total':
+                tempdf = pd.DataFrame(columns=dateIndex(starttask,endtask),index=[resource.name], data=[calcHoursinMonth(starttask,endtask,hours)])
+            elif result.mode.lower() == 'level':
+                tempdf = pd.DataFrame(columns=dateIndex(starttask,endtask),index=[resource.name], data=[calcHoursinMonthLevel(starttask,endtask,hours)])
+            else:
+                raise ValueError("mode not total or level")
+            df = pd.concat([df,tempdf],axis=0).fillna(0)
 
     return df
+
+
 
     
         

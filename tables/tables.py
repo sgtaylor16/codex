@@ -22,6 +22,7 @@ class Resources(Base):
     __tablename__ = "resources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    uid: Mapped[int] = mapped_column(Integer,unique=True)
     name: Mapped[str] = mapped_column(String(30),unique=True)
     dept: Mapped[int] = mapped_column(Integer)
     skill: Mapped[str] = mapped_column(String(30))
