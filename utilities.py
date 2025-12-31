@@ -1,4 +1,4 @@
-from tables.tables import Resources,Assignments, Tasks
+from tables.tables import Resources,Assignments, Tasks,Predecessors
 from orm import Session
 from datetime import datetime,date
 from dateutil.parser import parse
@@ -8,11 +8,56 @@ from typing import List
 from checks import get_ResourceNumber, get_TaskNumber
 from sqlalchemy import select
 
-def ReadInTasks(filename:str):
-    return None 
+def checkcolumns(df:pd.DataFrame, requiredcolumns:List[str]) -> bool:
+    for col in requiredcolumns:
+        if col not in df.columns:
+            return False
+    return True
 
-def AddResource(TaskUID,ResourceName,hours):
-    return None
+def ReadInTasks(filename:str):
+    df = pd.read_csv(filename)
+    requiredcolumns = ['id','name','duration']
+    if not checkcolumns(df,requiredcolumns):
+        raise ValueError("Missing required columns in tasks file")
+    for item in df.iterrows():
+        row = item[1]
+        with Session() as session:
+            Task1 = Tasks(id = row['id'],
+                          name = row['name'],
+                          duration = row['duration'])
+            session.add_all([Task1])
+            session.commit()
+
+def ReadInPredecessors(filename:str):
+    requiredcolumns = ['id','task','predecessor']
+    df = pd.read_csv(filename)
+    if not checkcolumns(df,requiredcolumns):
+        raise ValueError("Missing required columns in predecessors file")
+    for item in df.iterrows():
+        row = item[1]
+        with Session() as session:
+            Pred1 = Predecessors(id = row['id'],
+                                 task = row['task'],
+                                 predecessor = row['predecessor'])
+            session.add_all([Pred1])
+            session.commit()
+
+def AddResources(filename:str):
+    requiredcolumns = ['id','name','dept','skill','units']
+    df = pd.read_csv(filename)
+    if not checkcolumns(df,requiredcolumns):
+        raise ValueError("Missing required columns in resources file")
+
+    for row in df.iterrows():
+        with Session() as session:
+            Resource1 = Resources(id = row['id'],
+                                  name = row['name'],
+                                  dept = row['dept'],
+                                  skill = row['skill'],
+                                  units = row['units'])
+            session.add_all([Resource1])
+            session.commit()
+
 
 def countMonths(startdate:date,enddate:date) -> int:
     if (startdate.month == enddate.month) and (startdate.year == enddate.year):
@@ -147,6 +192,43 @@ def createTable() -> pd.DataFrame:
             df = pd.concat([df,tempdf],axis=0).fillna(0)
 
     return df
+
+def findSuccessors(task:Tasks,session: Session) -> List[Tasks]: # type: ignore
+    stmt = select(Predecessors).filter_by(predecessor=task.id)
+    preds = session.scalars(stmt).all()
+    if len(preds) == 0:
+        return []
+    else:
+        for pred in preds:
+            succ_tasks = session.scalars(select(Tasks).filter_by(id=pred.task)).all()
+        return succ_tasks
+
+def spreadEarlyStart(task:Tasks,session: Session) -> None:
+
+    for successor in findSuccessors(task,session):
+        tempstart = task.earlyfinish + pd.Timedelta(days = successor.duration)
+        if (successor.earlystart is None) or (successor.earlystart < tempstart):
+            successor.earlystart = tempstart
+
+        children = findSuccessors(successor)
+        if len(children) > 0:
+            spreadEarlyStart(successor)
+
+    return None
+
+def schedule():
+    
+    #Look for tasks with no predecessors
+    stmt = select(Tasks).filter(~Tasks.id.in_(select(Predecessors.task)))
+    with Session() as session:
+        no_pred_tasks = session.scalars(stmt).all()
+    
+    for task in no_pred_tasks:
+        if task.earlystart is None:
+            raise ValueError(f"Task {task.name} has no early start date")
+        spreadEarlyStart(task,session)
+    session.commit()
+        
 
 
 

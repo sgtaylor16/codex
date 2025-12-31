@@ -1,10 +1,11 @@
 from sqlalchemy import ForeignKey
 from typing import List
-from sqlalchemy import String, Integer, Table, Column, Float
+from sqlalchemy import String, Integer, Table, Column, Float, Date
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+from datetime import date
 
 class Base(DeclarativeBase):
     pass
@@ -34,6 +35,16 @@ class Tasks(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(30),unique=True)
-    enddate: Mapped[str] = mapped_column(String(30))
-    startdate: Mapped[str] = mapped_column(String(30))
+    duration: Mapped[float] = mapped_column(Float)
+    earlystart: Mapped[date] = mapped_column(Date,nullable=True)
+    latestart: Mapped[date] = mapped_column(Date,nullable=True)
+    earlyfinish: Mapped[date] = mapped_column(Date,nullable=True)
+    latefinish: Mapped[date] = mapped_column(Date,nullable=True)
     resources: Mapped[List['Resources']] = relationship('Resources',secondary=Assignments.__table__,back_populates="tasks")
+
+class Predecessors(Base):
+    __tablename__ = "predecessors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
+    predecessor: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
