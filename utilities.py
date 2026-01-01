@@ -1,4 +1,4 @@
-from tables.tables import Resources,Assignments, Tasks,Predecessors
+from tables.tables import Resources,Assignments, Tasks,pred_associations
 from orm import Session
 from datetime import datetime,date
 from dateutil.parser import parse
@@ -19,8 +19,7 @@ def ReadInTasks(filename:str):
     requiredcolumns = ['id','name','duration']
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in tasks file")
-    for item in df.iterrows():
-        row = item[1]
+    for index, row in df.iterrows():
         with Session() as session:
             Task1 = Tasks(id = row['id'],
                           name = row['name'],
@@ -33,10 +32,10 @@ def ReadInPredecessors(filename:str):
     df = pd.read_csv(filename)
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in predecessors file")
-    for item in df.iterrows():
-        row = item[1]
+    for index, row in df.iterrows():
         with Session() as session:
-            Pred1 = Predecessors(id = row['id'],
+            print(row)
+            Pred1 = pred_associations(id = row['id'],
                                  task = row['task'],
                                  predecessor = row['predecessor'])
             session.add_all([Pred1])
@@ -48,7 +47,7 @@ def AddResources(filename:str):
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in resources file")
 
-    for row in df.iterrows():
+    for index, row in df.iterrows():
         with Session() as session:
             Resource1 = Resources(id = row['id'],
                                   name = row['name'],
