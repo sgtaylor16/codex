@@ -16,14 +16,15 @@ def checkcolumns(df:pd.DataFrame, requiredcolumns:List[str]) -> bool:
 
 def ReadInTasks(filename:str):
     df = pd.read_csv(filename)
-    requiredcolumns = ['id','name','duration']
+    requiredcolumns = ['id','name','duration','earlystart']
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in tasks file")
     for index, row in df.iterrows():
         with Session() as session:
             Task1 = Tasks(id = row['id'],
                           name = row['name'],
-                          duration = row['duration'])
+                          duration = int(row['duration']),
+                          earlystart = parse(row['earlystart']).date() if pd.notna(row['earlystart']) else None)
             session.add_all([Task1])
             session.commit()
 
@@ -210,11 +211,10 @@ def spreadEarlyStart(task:Tasks,session: Session) -> None:
 def schedule():
     
     #Look for tasks with no predecessors
-    stmt = select(Tasks).filter(~Tasks.id.in_(select(Predecessors.task)))
     with Session() as session:
-        no_pred_tasks = session.scalars(stmt).all()
+        nopreds = session.query(Tasks).filter(len(Tasks.predecessors) == 0).all()
     
-    for task in no_pred_tasks:
+    for task in nopreds:
         if task.earlystart is None:
             raise ValueError(f"Task {task.name} has no early start date")
         spreadEarlyStart(task,session)
