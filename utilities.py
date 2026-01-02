@@ -32,14 +32,12 @@ def ReadInPredecessors(filename:str):
     df = pd.read_csv(filename)
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in predecessors file")
-    for index, row in df.iterrows():
-        with Session() as session:
-            print(row)
-            Pred1 = pred_associations(id = row['id'],
-                                 task = row['task'],
-                                 predecessor = row['predecessor'])
-            session.add_all([Pred1])
-            session.commit()
+    with Session() as session:
+        for index, row in df.iterrows():
+            task= session.query(Tasks).filter_by(id=int(row['task'])).first()
+            predecessor= session.query(Tasks).filter_by(id=int(row['predecessor'])).first()
+            task.predecessors.append(predecessor)
+        session.commit()
 
 def AddResources(filename:str):
     requiredcolumns = ['id','name','dept','skill','units']
