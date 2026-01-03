@@ -191,20 +191,24 @@ def createTable() -> pd.DataFrame:
 
     return df
 
-def findSuccessors(task:Tasks,session: Session) -> List[Tasks]: # type: ignore
-    suctasks = session.query(Tasks).filter(Tasks.predecessors.contains(task)).all()
+def findSuccessors(task:Tasks,session: Session) -> List[Tasks]: 
+    stmt = select(Tasks).where(Tasks.predecessors.contains(task)) # type: ignore
+    suctasks = session.execute(stmt).scalars().all()
     return suctasks
 
 def spreadEarlyStart(task:Tasks,session: Session) -> None:
 
     for successor in findSuccessors(task,session):
-        tempstart = task.earlyfinish + pd.Timedelta(days = successor.duration)
+        print(successor.name)
+        tempstart = task.earlystart + pd.Timedelta(days=task.duration) + pd.Timedelta(days = successor.duration)
+        print(task.earlyfinish)
         if (successor.earlystart is None) or (successor.earlystart < tempstart):
             successor.earlystart = tempstart
+            session.flush()
 
         children = findSuccessors(successor,session)
         if len(children) > 0:
-            spreadEarlyStart(successor)
+            spreadEarlyStart(successor,session)
 
     return None
 
