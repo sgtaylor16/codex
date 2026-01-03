@@ -198,11 +198,11 @@ def findSuccessors(task:Tasks,session: Session) -> List[Tasks]: # type: ignore
 def spreadEarlyStart(task:Tasks,session: Session) -> None:
 
     for successor in findSuccessors(task,session):
-        tempstart = task.earlfinish + pd.Timedelta(days = successor.duration)
+        tempstart = task.earlyfinish + pd.Timedelta(days = successor.duration)
         if (successor.earlystart is None) or (successor.earlystart < tempstart):
             successor.earlystart = tempstart
 
-        children = findSuccessors(successor)
+        children = findSuccessors(successor,session)
         if len(children) > 0:
             spreadEarlyStart(successor)
 
@@ -212,7 +212,8 @@ def schedule():
     
     #Look for tasks with no predecessors
     with Session() as session:
-        nopreds = session.query(Tasks).filter(len(Tasks.predecessors) == 0).all()
+        stmt = select(Tasks).where(~Tasks.predecessors.any())
+        nopreds = session.execute(stmt).scalars().all()
     
     for task in nopreds:
         if task.earlystart is None:
