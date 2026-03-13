@@ -56,3 +56,8 @@ class Tasks(Base):
                                                      primaryjoin=id==pred_associations.c.predecessorid,
                                                      secondaryjoin=id==pred_associations.c.taskid,
                                                      back_populates="predecessors")
+    
+class ProjectData(Base):
+    __tablename__ = "projectdata"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    projstart: Mapped[date] = mapped_column(Date,nullable=False)
