@@ -4,6 +4,7 @@ from typing import List
 from orm import Session
 from graphlib import TopologicalSorter, CycleError
 from datetime import timedelta
+import json
 
 
 def add_business_days(start_date, business_days: int):
@@ -27,7 +28,7 @@ def taskDict(tasks:List[Tasks]) -> dict:
         return []
     return {task.id: {pred.id for pred in task.predecessors} for task in tasks}
 
-def order_tasks() -> List[dict]:
+def order_tasks() -> None:
     """Return tasks in valid predecessor order with simple start/finish offsets.
 
     The returned records include:
@@ -82,11 +83,8 @@ def order_tasks() -> List[dict]:
         session.commit()
     return None
 
-def schedule() -> List[dict]:
-    """Backward-compatible wrapper for task scheduling."""
-    return schedule_tasks_in_order()
         
-def tasktojson() -> List[dict]:
+def tasktojson(filename: str = 'tasks.json') -> None:
     with Session() as session:
         stmt = select(Tasks)
         tasks = session.execute(stmt).scalars().all()
@@ -101,4 +99,7 @@ def tasktojson() -> List[dict]:
                 'predecessors': [pred.id for pred in task.predecessors]
             }
             tasklist.append(taskdict)
-    return tasklist
+    with open(filename, 'w') as f:
+        json.dump(tasklist, f, indent=4)
+
+    return None
