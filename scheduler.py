@@ -1,7 +1,19 @@
-from tables.tables import Resources,Assignments, Tasks
+from tables.tables import Resources,Assignments, Tasks, ProjectData
 from sqlalchemy import select
 from typing import List
 from orm import Session
+from graphlib import TopologicalSorter, CycleError
+from datetime import timedelta
+
+
+def add_business_days(start_date, business_days: int):
+    current_date = start_date
+    days_added = 0
+    while days_added < business_days:
+        current_date += timedelta(days=1)
+        if current_date.weekday() < 5:
+            days_added += 1
+    return current_date
 
 def getTasks(session) -> List[Tasks]:
     """Returns a list of all tasks in the database"""
@@ -11,9 +23,11 @@ def getTasks(session) -> List[Tasks]:
 
 def taskDict(tasks:List[Tasks]) -> dict:
     """Returns a dictionary of tasks with task id as key and task predessor ids as values"""
+    if len(tasks) == 0:
+        return []
     return {task.id: {pred.id for pred in task.predecessors} for task in tasks}
 
-def schedule_tasks_in_order() -> List[dict]:
+def order_tasks() -> List[dict]:
     """Return tasks in valid predecessor order with simple start/finish offsets.
 
     The returned records include:
@@ -22,63 +36,51 @@ def schedule_tasks_in_order() -> List[dict]:
     - finish_day: earliest day offset where task can finish
     """
     with Session() as session:
-        tasks = session.execute(select(Tasks)).scalars().all()
-
-        if len(tasks) == 0:
-            return []
+        tasks = getTasks(session)
+        predecessor_ids = taskDict(tasks)
 
         task_by_id = {task.id: task for task in tasks}
-        predecessor_ids = {task.id: {pred.id for pred in task.predecessors} for task in tasks}
-        successor_ids = {task.id: set() for task in tasks}
 
+        task_ids = set(task_by_id)
         for task_id, preds in predecessor_ids.items():
             for pred_id in preds:
-                if pred_id not in successor_ids:
+                if pred_id not in task_ids:
                     raise ValueError(f"Predecessor task id {pred_id} not found for task {task_id}")
-                successor_ids[pred_id].add(task_id)
 
-        indegree = {task_id: len(preds) for task_id, preds in predecessor_ids.items()}
-        ready = sorted([task_id for task_id, degree in indegree.items() if degree == 0])
+        sorter = TopologicalSorter(predecessor_ids)
+        try:
+            topological_order = list(sorter.static_order())
+        except CycleError as exc:
+            raise ValueError("Cycle detected in predecessor relationships. Scheduling requires a DAG.") from exc
 
-        topological_order: List[int] = []
-        while ready:
-            current_id = ready.pop(0)
-            topological_order.append(current_id)
-            for succ_id in sorted(successor_ids[current_id]):
-                indegree[succ_id] -= 1
-                if indegree[succ_id] == 0:
-                    ready.append(succ_id)
-            ready.sort()
+        project_start = session.execute(
+            select(ProjectData.projstart).limit(1)
+        ).scalar_one_or_none()
 
-        if len(topological_order) != len(tasks):
-            raise ValueError("Cycle detected in predecessor relationships. Scheduling requires a DAG.")
+        if project_start is None:
+            raise ValueError("Project start date is not set in ProjectData.")
 
-        earliest_start = {}
-        earliest_finish = {}
+
         for task_id in topological_order:
-            pred_finish_days = [earliest_finish[pred_id] for pred_id in predecessor_ids[task_id]]
-            start_day = max(pred_finish_days) if pred_finish_days else 0.0
-            duration = float(task_by_id[task_id].duration)
-            finish_day = start_day + duration
-            earliest_start[task_id] = start_day
-            earliest_finish[task_id] = finish_day
-
-        ordered_schedule = []
-        for order, task_id in enumerate(topological_order, start=1):
-            task = task_by_id[task_id]
-            ordered_schedule.append(
-                {
-                    'order': order,
-                    'id': task.id,
-                    'name': task.name,
-                    'duration': float(task.duration),
-                    'predecessors': sorted(list(predecessor_ids[task_id])),
-                    'start_day': earliest_start[task_id],
-                    'finish_day': earliest_finish[task_id],
-                }
-            )
-
-    return ordered_schedule
+            onetask = task_by_id[task_id]
+            duration = float(onetask.duration)
+            if not predecessor_ids[task_id]:  # No predecessors
+                start_day = 0.0
+                onetask.earlystart = project_start
+                onetask.earlyfinish = add_business_days(project_start, int(duration))
+            else:
+                earlieststart = None
+                for onepred in onetask.predecessors:
+                    if earlieststart is None:
+                        earlieststart = onepred.earlyfinish
+                    elif onepred.earlyfinish > earlieststart:
+                        earlieststart = onepred.earlyfinish
+                onetask.earlystart = earlieststart
+                onetask.earlyfinish = add_business_days(earlieststart, int(duration))
+                print(onetask.earlystart)
+        
+        session.commit()
+    return None
 
 def schedule() -> List[dict]:
     """Backward-compatible wrapper for task scheduling."""
