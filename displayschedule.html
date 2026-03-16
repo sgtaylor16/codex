@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScheduleDisplay</title>
+</head>
+<body>
+    <h1>Schedule</h1>
+    <label for="json-file">JSON file:</label>
+    <input id="json-file" type="text" value="tasks.json" />
+    <button id="load-chart" type="button">Load Chart</button>
+    <p id="chart-status" aria-live="polite"></p>
+    <div id="schedule-container"></div>
+    
+    <script type="module">
+        import { renderTaskGantt } from "./gantt.js";
+
+        const fileInput = document.getElementById("json-file");
+        const loadButton = document.getElementById("load-chart");
+        const status = document.getElementById("chart-status");
+
+        async function loadChart() {
+            const fileName = fileInput.value.trim();
+
+            if (!fileName) {
+                status.textContent = "Enter a JSON filename.";
+                return;
+            }
+
+            status.textContent = `Loading ${fileName}...`;
+
+            try {
+                await renderTaskGantt(fileName, "#schedule-container");
+                status.textContent = `Loaded ${fileName}`;
+            } catch (error) {
+                status.textContent = `Could not load ${fileName}`;
+            }
+        }
+
+        loadButton.addEventListener("click", loadChart);
+        fileInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                loadChart();
+            }
+        });
+
+        loadChart();
+
+        
+    </script>
+</body>
+</html>

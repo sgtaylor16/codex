@@ -1,0 +1,50 @@
+[
+    {
+        "id": 1,
+        "name": "projstart",
+        "duration": 0.0,
+        "earlystart": "2024-01-01",
+        "earlyfinish": "2024-01-01",
+        "predecessors": []
+    },
+    {
+        "id": 2,
+        "name": "pour foundation",
+        "duration": 2.0,
+        "earlystart": "2024-01-01",
+        "earlyfinish": "2024-01-03",
+        "predecessors": [
+            1
+        ]
+    },
+    {
+        "id": 3,
+        "name": "build frame",
+        "duration": 7.0,
+        "earlystart": "2024-01-03",
+        "earlyfinish": "2024-01-12",
+        "predecessors": [
+            2
+        ]
+    },
+    {
+        "id": 4,
+        "name": "roof",
+        "duration": 5.0,
+        "earlystart": "2024-01-12",
+        "earlyfinish": "2024-01-19",
+        "predecessors": [
+            3
+        ]
+    },
+    {
+        "id": 5,
+        "name": "home complete",
+        "duration": 0.0,
+        "earlystart": "2024-01-19",
+        "earlyfinish": "2024-01-19",
+        "predecessors": [
+            4
+        ]
+    }
+]
