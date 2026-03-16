@@ -15,6 +15,13 @@ def checkcolumns(df:pd.DataFrame, requiredcolumns:List[str]) -> bool:
     return True
 
 def ReadInTasks(filename:str):
+    """
+    Reads in tasks from a csv file and adds them to the database. The csv file must have the following columns:
+    - id: unique identifier for the task
+    - name: name of the task
+    - duration: duration of the task in days
+    - earlystart: (optional) early start date of the task in YYYY-MM-DD format
+    """
     df = pd.read_csv(filename)
     requiredcolumns = ['id','name','duration','earlystart']
     if not checkcolumns(df,requiredcolumns):
@@ -29,6 +36,11 @@ def ReadInTasks(filename:str):
             session.commit()
 
 def ReadInPredecessors(filename:str):
+    """Reads in predecessors from a csv file and adds them to the database. The csv file must have the following columns:
+    - id: unique identifier for the predecessor relationship
+    - task: id of the task
+    - predecessor: id of the predecessor task
+    """
     requiredcolumns = ['id','task','predecessor']
     df = pd.read_csv(filename)
     if not checkcolumns(df,requiredcolumns):
@@ -41,6 +53,13 @@ def ReadInPredecessors(filename:str):
         session.commit()
 
 def AddResources(filename:str):
+    """Reads in resources from a csv file and adds them to the database. The csv file must have the following columns:
+    - id: unique identifier for the resource
+    - name: name of the resource
+    - dept: department of the resource
+    - skill: skill of the resource
+    - units: units of the resource (e.g. 1 for full-time, 0.5 for half-time)
+    """
     requiredcolumns = ['id','name','dept','skill','units']
     df = pd.read_csv(filename)
     if not checkcolumns(df,requiredcolumns):
@@ -56,8 +75,8 @@ def AddResources(filename:str):
             session.add_all([Resource1])
             session.commit()
 
-
 def countMonths(startdate:date,enddate:date) -> int:
+    """Counts the number of months between two dates, inclusive"""
     if (startdate.month == enddate.month) and (startdate.year == enddate.year):
         return 1
     elif (startdate.year == enddate.year):
@@ -85,12 +104,14 @@ def calcHoursinMonth(startdate:date,enddate:date,hours:float) -> List[int]:
     return [hourmult * x for x in daylist]
 
 def calcHoursinMonthLevel(startdate:date,enddate:date,fte:float) -> List[float]:
+    """Returns a list of hours in each month. Total will equal fte * 8 * number of business days"""
     date_frame = pd.date_range(startdate,enddate,freq="B").to_frame()
     date_frame['AP'] = date_frame[0].apply(lambda x: str(x.year) + addzero(str(x.month)))
     date_frame['Hours'] = fte * 8.0
     return date_frame['Hours'].groupby(date_frame['AP']).sum().to_list()
 
 def addAssignment(taskname,resourcename,hours):
+    """Adds an assignment to the database"""
     tasknumber = get_TaskNumber(taskname)
     resourcenumber = get_ResourceNumber(resourcename)
     with Session() as session:
@@ -191,19 +212,20 @@ def createTable() -> pd.DataFrame:
 
     return df
 
-def findSuccessors(task:Tasks,session: Session) -> List[Tasks]: 
+def findSuccessors(task:Tasks,session) -> List[Tasks]: 
+    """Returns a list of successor tasks for a given task"""
     stmt = select(Tasks).where(Tasks.predecessors.contains(task)) # type: ignore
     suctasks = session.execute(stmt).scalars().all()
     return suctasks
 
-def spreadEarlyStart(task:Tasks,session: Session) -> None:
+def spreadEarlyStart(task:Tasks,session) -> None:
 
     for successor in findSuccessors(task,session):
-        print(successor.name)
         tempstart = task.earlystart + pd.Timedelta(days=task.duration) + pd.Timedelta(days = successor.duration)
         print(task.earlyfinish)
-        if (successor.earlystart is None) or (successor.earlystart < tempstart):
+        if (successor.earlystart is None) or (successor.earlystart <= tempstart):
             successor.earlystart = tempstart
+            successor.earlyfinish = successor.earlystart + pd.Timedelta(days=successor.duration)
             session.flush()
 
         children = findSuccessors(successor,session)
@@ -212,19 +234,6 @@ def spreadEarlyStart(task:Tasks,session: Session) -> None:
 
     return None
 
-def schedule():
-    
-    #Look for tasks with no predecessors
-    with Session() as session:
-        stmt = select(Tasks).where(~Tasks.predecessors.any())
-        nopreds = session.execute(stmt).scalars().all()
-    
-    for task in nopreds:
-        if task.earlystart is None:
-            raise ValueError(f"Task {task.name} has no early start date")
-        spreadEarlyStart(task,session)
-    session.commit()
-        
 
 
 
