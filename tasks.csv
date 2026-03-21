@@ -1,5 +1,7 @@
-name,startdate,enddate
-pour foundation,4/15/24,7/15/24
-build frame,7/15/24,10/15/24
-roof,10/15/24,12/10/24
+id,name,duration,earlystart
+1,projstart,0,"2026-01-03"
+2,pour foundation,2
+3,build frame,7
+4,roof,5
+5,home complete,0
 

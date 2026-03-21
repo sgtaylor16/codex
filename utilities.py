@@ -7,6 +7,8 @@ import pandas as pd
 from typing import List
 from checks import get_ResourceNumber, get_TaskNumber
 from sqlalchemy import select
+import json
+import plotly.express as px
 
 def checkcolumns(df:pd.DataFrame, requiredcolumns:List[str]) -> bool:
     for col in requiredcolumns:
@@ -233,6 +235,37 @@ def spreadEarlyStart(task:Tasks,session) -> None:
             spreadEarlyStart(successor,session)
 
     return None
+
+
+def gantt_from_json(filename: str) -> None:
+    """
+    Renders an interactive Plotly Gantt chart from a JSON schedule file.
+
+    The JSON file should be a list of task objects with the fields:
+        id, name, duration, earlystart, earlyfinish, predecessors
+
+    Example usage:
+        gantt_from_json("trial.json")
+    """
+    with open(filename, "r") as f:
+        tasks = json.load(f)
+
+    df = pd.DataFrame(tasks)[["id", "name", "earlystart", "earlyfinish"]]
+    df = df.dropna(subset=["earlystart", "earlyfinish"])
+    df = df[df["earlystart"] != ""]
+    df["Task"] = df["id"].astype(str) + ": " + df["name"]
+    df = df.sort_values(["earlystart", "id"]).reset_index(drop=True)
+
+    fig = px.timeline(
+        df,
+        x_start="earlystart",
+        x_end="earlyfinish",
+        y="Task",
+        title="Project Schedule",
+        template="plotly_white",
+    )
+    fig.update_yaxes(autorange="reversed")
+    fig.show()
 
 
 
