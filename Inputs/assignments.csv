@@ -1,2 +1,2 @@
-id,task_id,resource_id,totalhours,mode
-1,2,2,100
+id,task_id,resource_id,hours,mode
+1,2,2,100,total

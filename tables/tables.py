@@ -16,7 +16,8 @@ class Assignments(Base):
     id:Mapped[int] = mapped_column(primary_key=True)
     resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id"),nullable=False)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"),nullable=False)
-    totalhours: Mapped[float] = mapped_column(nullable=False)
+    hours: Mapped[float] = mapped_column(nullable=False)
+    mode: Mapped[str] = mapped_column(String(30),default='total')
     resource: Mapped["Resources"] = relationship("Resources", back_populates="assignments")
     task: Mapped["Tasks"] = relationship("Tasks", back_populates="assignments")
 

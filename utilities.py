@@ -85,8 +85,13 @@ def ReadInAssignments(filename:str):
     - hours: number of hours assigned
     - mode: 'total' or 'level' (if 'total', hours are spread evenly across the duration of the task; if 'level', hours are spread according to the resource's availability)
     """
-    requiredcolumns = ['id','task_id','resource_id','totalhours','mode']
+    requiredcolumns = ['id','task_id','resource_id','hours','mode']
+    allowedmodes = ['total','level']
     df = pd.read_csv(filename)
+
+    if not all(df['mode'].isin(allowedmodes)):
+        raise ValueError("Invalid mode in assignments file. Allowed modes are 'total' and 'level'")
+    
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in assignments file")
     for index, row in df.iterrows():
@@ -94,7 +99,8 @@ def ReadInAssignments(filename:str):
             Assn1 = Assignments(id = row['id'],
                                 resource = session.query(Resources).filter_by(id=int(row['resource_id'])).first(), 
                                 task = session.query(Tasks).filter_by(id=int(row['task_id'])).first(),
-                                totalhours = row['totalhours'])
+                                hours = row['hours'],
+                                mode = row['mode'])
             session.add_all([Assn1])
             session.commit()
 
@@ -125,6 +131,31 @@ def populatedb(tables:dict[str,str], dbdelete:bool=False):
             ReadInAssignments(tables['assignments'])
             print("Assignments read in successfully")
 
+def createHoursTable() -> pd.DataFrame:
+    """Creates a pandas dataframe with resources as rows and APs as columns, with the values being the number of hours assigned to each resource in each AP."""
+    df = pd.DataFrame(columns = APindex(getMinDate(),getMaxDate()))
+    stmt = select(Assignments)
+
+    with Session() as session:
+        results = session.scalars(stmt).all()
+        for result in results:
+            #Get Task
+            task = session.scalars(select(Tasks).filter_by(id=result.task_id)).all()[0]
+            #Get Resource
+            resource = session.scalars(select(Resources).filter_by(id=result.resource_id)).all()[0]
+            #Get Hours
+            hours = result.totalhours
+            #get Mode
+            if result.mode.lower() == 'total':
+                tempdf = pd.DataFrame(columns=APindex(task.earlystart,task.earlyfinish),index=[resource.name], data=[calcHoursinMonth(task.earlystart,task.earlyfinish,hours)])
+            elif result.mode.lower() == 'level':
+                tempdf = pd.DataFrame(columns=APindex(task.earlystart,task.earlyfinish),index=[resource.name], data=[calcHoursinMonthLevel(task.earlystart,task.earlyfinish,hours)])
+            else:
+                raise ValueError("mode not total or level")
+            df = pd.concat([df,tempdf],axis=0).fillna(0)
+
+    return df
+
 def countMonths(startdate:date,enddate:date) -> int:
     """Counts the number of months between two dates, inclusive"""
     if (startdate.month == enddate.month) and (startdate.year == enddate.year):
@@ -147,7 +178,6 @@ def calcHoursinMonth(startdate:date,enddate:date,hours:float) -> List[int]:
     # Create a sample date range
     date_frame = pd.date_range(startdate,enddate, freq='B').to_frame()
     date_frame['AP'] = date_frame[0].apply(lambda x: str(x.year) + addzero(str(x.month)))
-    print(date_frame['AP'].value_counts().sort_index().to_list())
 
     hourmult = float(hours / date_frame['AP'].value_counts().sum() )
     daylist = date_frame['AP'].value_counts().sort_index().to_list()
@@ -160,32 +190,22 @@ def calcHoursinMonthLevel(startdate:date,enddate:date,fte:float) -> List[float]:
     date_frame['Hours'] = fte * 8.0
     return date_frame['Hours'].groupby(date_frame['AP']).sum().to_list()
 
-def addAssignment(taskname,resourcename,hours):
-    """Adds an assignment to the database"""
-    tasknumber = get_TaskNumber(taskname)
-    resourcenumber = get_ResourceNumber(resourcename)
-    with Session() as session:
-        Assn1 = Assignments(resource = resourcenumber, tasks=tasknumber, hours = hours)
-
-        session.add_all([Assn1])
-        session.commit()
-
-def getDate(option:str):
-    startstmt = select(Tasks.startdate)
-    endstmt = select(Tasks.enddate)
+def getDate(option:str) -> date:
+    startstmt = select(Tasks.earlystart)
+    endstmt = select(Tasks.earlyfinish)
     with Session() as session:
         results_start = session.scalars(startstmt).fetchall()
         results_end = session.scalars(endstmt).fetchall()
         results = results_start + results_end
     if option == 'min':
-        return min([parse(x) for x in results])
+        return min([x for x in results])
     elif option =='max':
-        return max([parse(x) for x in results])
+        return max([x for x in results])
 
-def getMinDate():
+def getMinDate() -> date:
     return getDate('min')
 
-def getMaxDate():
+def getMaxDate() -> date:
     return getDate('max')
 
 def dtToAP(date:date) -> str:
@@ -195,67 +215,35 @@ def dtToAP(date:date) -> str:
         month = '0' + month
     return int(year + month)
 
-def dateIndex(startdate:date,enddate:date):
+def APindex(startdate:date,enddate:date) -> List[str]:
+    """Returns a list of APs between two dates, inclusive"""
     beginDate = date(startdate.year,startdate.month,1)
     datelist = pd.date_range(beginDate,enddate,freq='MS').to_list()
     return [dtToAP(x) for x in datelist]
-
-def readTasks(filename:str,map:dict=None):
-    taskslist = pd.read_csv(filename)
-    if map != None:
-        tasklist = tasklist.rename(mapper=map,axis=1)
-    taskslist = taskslist[['name','startdate','enddate']].to_dict(orient='records')
-    instances = [Tasks(**row) for row in taskslist]
-    with Session() as session:
-        session.add_all(instances)
-        session.commit()
-
-def readResources(filename:str,map:dict=None):
-    resourcelist = pd.read_csv(filename)
-    if map != None:
-        resourcelist = resourcelist.rename(mapper=map,axis=1)
-    resourcelist = resourcelist[['name','dept','skill','units']].to_dict(orient='records')
-    instances = [Resources(**row) for row in resourcelist]
-    with Session() as session:
-        session.add_all(instances)
-        session.commit()
-
-def readAssignments(filename:str,map:dict=None):
-    assignlist = pd.read_csv(filename)
-    if map != None:
-        assignlist = assignlist.rename(mapper=map,axis=1)
-    assignlist['tasks'] = assignlist['tasks'].apply(get_TaskNumber)
-    assignlist['resource'] = assignlist['resource'].apply(get_ResourceNumber)
-    assignlist= assignlist[['tasks','resource','hours','mode']].to_dict(orient='records')
-    instances = [Assignments(**row) for row in assignlist]
-    with Session() as session:
-        session.add_all(instances)
-        session.commit()
 
 def createTable() -> pd.DataFrame:
     """
     Returns a pandas dataframe suitable to input into a loading
     """
 
-    df = pd.DataFrame(columns = dateIndex(getMinDate(),getMaxDate()))
-    stmt = select(Assignments)
+    df = pd.DataFrame(columns = APindex(getMinDate(),getMaxDate()))
 
     with Session() as session:
-        results = session.scalars(stmt).all()
+        results = session.scalars(select(Assignments)).all()
         for result in results:
             #Get Task
-            task = session.scalars(select(Tasks).filter_by(id=result.tasks)).all()[0]
-            starttask = parse(task.startdate)
-            endtask = parse(task.enddate)
+            task = session.scalars(select(Tasks).filter_by(id=result.task_id)).all()[0]
+            starttask = parse(task.earlystart)
+            endtask = parse(task.earlyfinish)
             #Get Resource
-            resource = session.scalars(select(Resources).filter_by(id=result.tasks)).all()[0]
+            resource = session.scalars(select(Resources).filter_by(id=result.resource_id)).all()[0]
             #Get Hours
             hours = result.hours
             #get Mode
             if result.mode.lower() == 'total':
-                tempdf = pd.DataFrame(columns=dateIndex(starttask,endtask),index=[resource.name], data=[calcHoursinMonth(starttask,endtask,hours)])
+                tempdf = pd.DataFrame(columns=APindex(starttask,endtask),index=[resource.name], data=[calcHoursinMonth(starttask,endtask,hours)])
             elif result.mode.lower() == 'level':
-                tempdf = pd.DataFrame(columns=dateIndex(starttask,endtask),index=[resource.name], data=[calcHoursinMonthLevel(starttask,endtask,hours)])
+                tempdf = pd.DataFrame(columns=APindex(starttask,endtask),index=[resource.name], data=[calcHoursinMonthLevel(starttask,endtask,hours)])
             else:
                 raise ValueError("mode not total or level")
             df = pd.concat([df,tempdf],axis=0).fillna(0)
@@ -267,23 +255,6 @@ def findSuccessors(task:Tasks,session) -> List[Tasks]:
     stmt = select(Tasks).where(Tasks.predecessors.contains(task)) # type: ignore
     suctasks = session.execute(stmt).scalars().all()
     return suctasks
-
-def spreadEarlyStart(task:Tasks,session) -> None:
-
-    for successor in findSuccessors(task,session):
-        tempstart = task.earlystart + pd.Timedelta(days=task.duration) + pd.Timedelta(days = successor.duration)
-        print(task.earlyfinish)
-        if (successor.earlystart is None) or (successor.earlystart <= tempstart):
-            successor.earlystart = tempstart
-            successor.earlyfinish = successor.earlystart + pd.Timedelta(days=successor.duration)
-            session.flush()
-
-        children = findSuccessors(successor,session)
-        if len(children) > 0:
-            spreadEarlyStart(successor,session)
-
-    return None
-
 
 def gantt_from_json(filename: str) -> None:
     """
