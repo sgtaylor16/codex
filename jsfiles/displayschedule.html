@@ -15,6 +15,13 @@
     
     <script type="module">
         import { renderTaskGantt } from "./gantt.js";
+        import { topologicalSort } from "./topsort.js";
+        import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+        
+
+
+
 
         const fileInput = document.getElementById("json-file");
         const loadButton = document.getElementById("load-chart");
@@ -46,8 +53,6 @@
         });
 
         loadChart();
-
-        
     </script>
 </body>
 </html>

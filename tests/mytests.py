@@ -1,4 +1,5 @@
 import unittest
 
 class TestMethods(unittest.TestCase):
-    def test
+    def test_placeholder(self):
+        self.assertTrue(True)

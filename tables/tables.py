@@ -14,21 +14,21 @@ class Assignments(Base):
     __tablename__ ="assignments"
 
     id:Mapped[int] = mapped_column(primary_key=True)
-    resource: Mapped[int] = mapped_column(ForeignKey("resources.id"))
-    tasks: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
-    hours: Mapped[float] = mapped_column(nullable=False)
-    mode: Mapped[str] = mapped_column(nullable=False)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id"),nullable=False)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"),nullable=False)
+    totalhours: Mapped[float] = mapped_column(nullable=False)
+    resource: Mapped["Resources"] = relationship("Resources", back_populates="assignments")
+    task: Mapped["Tasks"] = relationship("Tasks", back_populates="assignments")
 
 class Resources(Base):
     __tablename__ = "resources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    uid: Mapped[int] = mapped_column(Integer,unique=True)
-    name: Mapped[str] = mapped_column(String(30),unique=True)
+    name: Mapped[str] = mapped_column(String(30),unique=True,nullable=False)
     dept: Mapped[int] = mapped_column(Integer)
     skill: Mapped[str] = mapped_column(String(30))
     units: Mapped[str] = mapped_column(String(30))
-    #tasks: Mapped[List['Tasks']] = relationship('Tasks',secondary=Assignments.__table__,back_populates="resources")
+    assignments: Mapped[List[Assignments]] = relationship("Assignments",back_populates="resource")
 
 pred_associations = Table(
     'pred_associations',
@@ -56,6 +56,7 @@ class Tasks(Base):
                                                      primaryjoin=id==pred_associations.c.predecessorid,
                                                      secondaryjoin=id==pred_associations.c.taskid,
                                                      back_populates="predecessors")
+    assignments: Mapped[List[Assignments]] = relationship("Assignments", back_populates="task")
     
 class ProjectData(Base):
     __tablename__ = "projectdata"

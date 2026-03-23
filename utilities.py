@@ -1,4 +1,4 @@
-from tables.tables import Resources,Assignments, Tasks,pred_associations
+from tables.tables import Resources,Assignments, Tasks,pred_associations, ProjectData
 from orm import Session
 from datetime import datetime,date
 from dateutil.parser import parse
@@ -40,21 +40,21 @@ def ReadInTasks(filename:str):
 def ReadInPredecessors(filename:str):
     """Reads in predecessors from a csv file and adds them to the database. The csv file must have the following columns:
     - id: unique identifier for the predecessor relationship
-    - task: id of the task
-    - predecessor: id of the predecessor task
+    - task_id: id of the task
+    - predecessor_id: id of the predecessor task
     """
-    requiredcolumns = ['id','task','predecessor']
+    requiredcolumns = ['id','task_id','predecessor_id']
     df = pd.read_csv(filename)
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in predecessors file")
     with Session() as session:
         for index, row in df.iterrows():
-            task= session.query(Tasks).filter_by(id=int(row['task'])).first()
-            predecessor= session.query(Tasks).filter_by(id=int(row['predecessor'])).first()
+            task= session.query(Tasks).filter_by(id=int(row['task_id'])).first()
+            predecessor= session.query(Tasks).filter_by(id=int(row['predecessor_id'])).first()
             task.predecessors.append(predecessor)
         session.commit()
 
-def AddResources(filename:str):
+def ReadInResources(filename:str):
     """Reads in resources from a csv file and adds them to the database. The csv file must have the following columns:
     - id: unique identifier for the resource
     - name: name of the resource
@@ -76,6 +76,54 @@ def AddResources(filename:str):
                                   units = row['units'])
             session.add_all([Resource1])
             session.commit()
+
+def ReadInAssignments(filename:str):
+    """Reads in assignments from a csv file and adds them to the database. The csv file must have the following columns:
+    - id: unique identifier for the assignment
+    - task: id of the task
+    - resource: id of the resource
+    - hours: number of hours assigned
+    - mode: 'total' or 'level' (if 'total', hours are spread evenly across the duration of the task; if 'level', hours are spread according to the resource's availability)
+    """
+    requiredcolumns = ['id','task_id','resource_id','totalhours','mode']
+    df = pd.read_csv(filename)
+    if not checkcolumns(df,requiredcolumns):
+        raise ValueError("Missing required columns in assignments file")
+    for index, row in df.iterrows():
+        with Session() as session:
+            Assn1 = Assignments(id = row['id'],
+                                resource = session.query(Resources).filter_by(id=int(row['resource_id'])).first(), 
+                                task = session.query(Tasks).filter_by(id=int(row['task_id'])).first(),
+                                totalhours = row['totalhours'])
+            session.add_all([Assn1])
+            session.commit()
+
+def populatedb(tables:dict[str,str], dbdelete:bool=False):
+    """Populates the database with resources, tasks, predecessors, and assignments from csv files."""
+    if dbdelete:
+        with Session() as session:
+            session.query(Assignments).delete()
+            session.query(pred_associations).delete()
+            session.query(Tasks).delete()
+            session.query(Resources).delete()
+            session.query(ProjectData).delete()
+            session.commit()
+
+    if 'tasks' in tables.keys():
+            ReadInTasks(tables['tasks'])
+            print("Tasks read in successfully")
+
+    if 'resources' in tables.keys():
+            ReadInResources(tables['resources'])
+            print("Resources read in successfully")
+
+    if 'predecessors' in tables.keys():
+            ReadInPredecessors(tables['predecessors'])
+            print("Predecessors read in successfully")
+
+    if 'assignments' in tables.keys():
+            ReadInAssignments(tables['assignments'])
+            print("Assignments read in successfully")
 
 def countMonths(startdate:date,enddate:date) -> int:
     """Counts the number of months between two dates, inclusive"""
