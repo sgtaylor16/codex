@@ -144,7 +144,7 @@ def createHoursTable() -> pd.DataFrame:
             #Get Resource
             resource = session.scalars(select(Resources).filter_by(id=result.resource_id)).all()[0]
             #Get Hours
-            hours = result.totalhours
+            hours = result.hours
             #get Mode
             if result.mode.lower() == 'total':
                 tempdf = pd.DataFrame(columns=APindex(task.earlystart,task.earlyfinish),index=[resource.name], data=[calcHoursinMonth(task.earlystart,task.earlyfinish,hours)])
