@@ -24,7 +24,7 @@ def ReadInTasks(filename:str):
     - duration: duration of the task in days
     - earlystart: (optional) early start date of the task in YYYY-MM-DD format
     """
-    df = pd.read_csv(filename)
+    df = pd.read_csv(filename, dtype={'predecessors': 'string'})
     requiredcolumns = ['id','name','duration','earlystart']
     if not checkcolumns(df,requiredcolumns):
         raise ValueError("Missing required columns in tasks file")
@@ -36,6 +36,44 @@ def ReadInTasks(filename:str):
                           earlystart = parse(row['earlystart']).date() if pd.notna(row['earlystart']) else None)
             session.add_all([Task1])
             session.commit()
+
+def ReadInTasks2(filename:str):
+    """
+    Reads in tasks with a csv file. Includes predecessor information. The csv file must have the following columns:
+    - id: unique identifier for the task
+    - name: name of the task
+    - duration: duration of the task in days
+    - earlystart: (optional) early start date of the task in YYYY-MM-DD format
+    - predecessors: (optional) semi-colon separated list of predecessor task ids
+    """
+    df = pd.read_csv(filename)
+    requiredcolumns = ['id','name','duration','earlystart','predecessors']
+    if not checkcolumns(df,requiredcolumns):
+        raise ValueError("Missing required columns in tasks file")
+    with Session() as session:
+        # First pass: create every task so predecessor lookups always succeed.
+        for index, row in df.iterrows():
+            task = Tasks(
+                id=row['id'],
+                name=row['name'],
+                duration=int(row['duration']),
+                earlystart=parse(row['earlystart']).date() if pd.notna(row['earlystart']) else None,
+            )
+            session.add(task)
+
+        session.flush()
+
+        # Second pass: attach predecessor relationships once all tasks exist.
+        for index, row in df.iterrows():
+            if pd.notna(row['predecessors']):
+                task = session.query(Tasks).filter_by(id=int(row['id'])).first()
+                pred_ids = [int(x) for x in row['predecessors'].split(';')]
+                for pred_id in pred_ids:
+                    pred_task = session.query(Tasks).filter_by(id=pred_id).first()
+                    if pred_task is not None:
+                        task.predecessors.append(pred_task)
+
+        session.commit()
 
 def ReadInPredecessors(filename:str):
     """Reads in predecessors from a csv file and adds them to the database. The csv file must have the following columns:
