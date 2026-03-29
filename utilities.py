@@ -18,27 +18,6 @@ def checkcolumns(df:pd.DataFrame, requiredcolumns:List[str]) -> bool:
 
 def ReadInTasks(filename:str):
     """
-    Reads in tasks from a csv file and adds them to the database. The csv file must have the following columns:
-    - id: unique identifier for the task
-    - name: name of the task
-    - duration: duration of the task in days
-    - earlystart: (optional) early start date of the task in YYYY-MM-DD format
-    """
-    df = pd.read_csv(filename, dtype={'predecessors': 'string'})
-    requiredcolumns = ['id','name','duration','earlystart']
-    if not checkcolumns(df,requiredcolumns):
-        raise ValueError("Missing required columns in tasks file")
-    for index, row in df.iterrows():
-        with Session() as session:
-            Task1 = Tasks(id = row['id'],
-                          name = row['name'],
-                          duration = int(row['duration']),
-                          earlystart = parse(row['earlystart']).date() if pd.notna(row['earlystart']) else None)
-            session.add_all([Task1])
-            session.commit()
-
-def ReadInTasks2(filename:str):
-    """
     Reads in tasks with a csv file. Includes predecessor information. The csv file must have the following columns:
     - id: unique identifier for the task
     - name: name of the task
